@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Demo Page</title>
+    <script src="jquery.min.js"></script>
+    <script type="text/javascript">
+      $(function() {
+
+        //发布订阅原型
+        function PubSub() {
+          //存储事件名与回调函数
+          var eventContainer = {};
+
+          //订阅 存储事件
+          this.subscribe = function(eventName, callback) {
+            var callbacks = eventContainer[eventName] || [];
+            callbacks.push(callback);
+            eventContainer[eventName] = callbacks;
+          }
+
+          //发布 调用相应事件
+          this.publish = function() {
+            var eventName = [].shift.call(arguments);
+            var callbacks = eventContainer[eventName];
+
+            if (!callbacks || callbacks.length == 0) {
+              return false;
+            }
+
+            for(var i = 0; i < callbacks.length; i++) {
+              var callback = callbacks[i];
+              callback.apply(this, arguments);
+            }
+          }
+        }
+
+        //实例化发布订阅原型
+        function InstancePubSub() {
+          var pubSub = new PubSub;
+
+          //监听model变化
+          pubSub.subscribe("model-change", function(key, newVal) {
+            //model变化更新视图
+            $("[data-bind=" + key + "]").each(function() {
+              if ($(this).is("input, textarea, select")) {
+                $(this).val(newVal);
+              } else {
+                $(this).html(newVal);
+              }
+            })
+
+            $("#modelView").html(newVal)
+          });
+
+          //对视图层元素进行change事件绑定
+          $(document).on("input", "[data-bind]", function(evt) {
+              //一旦view发生变化通知调用回调函数更新model
+              pubSub.publish("view-change", $(this).attr("data-bind"), $(this).val());
+          });
+
+          return pubSub;
+        }
+
+        function User() {
+          var pubSubInstance = new InstancePubSub;
+
+          var user = {
+            properties : {},
+            _set : function(key, value) {
+              this.properties[key] = value;
+              //model变化通知更新view
+              pubSubInstance.publish("model-change", key, value);
+            },
+            _get : function(key) {
+              return this.properties[key];
+            }
+          };
+
+          pubSubInstance.subscribe("view-change", function(key, newVal) {
+            //视图变化 更新model
+            user._set(key, newVal);
+          });
+
+          return user;
+        }
+
+        var user = new User;
+
+        //设置model值
+        user._set("age", 1);
+
+        //绑定model到view
+        $("#modelView").html(user._get("age"))
+
+        //测试model变化引起view变化
+        $("#btn").click(function() {
+          user._set("age", parseInt(user._get("age")) + 1);
+        })
+      })
+    </script>
+  </head>
+  <body>
+    <!--veiw-->
+    <input type="number" data-bind="age" />
+    <div id="modelView"></div>
+
+    <button id="btn">+1</button>
+  </body>
+</html>
